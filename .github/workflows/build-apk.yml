@@ -1,0 +1,44 @@
+name: Build APK from uploaded ZIP
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Find and unzip project
+        run: |
+          set -e
+          ZIP=$(ls rail-departure-boards-v*.zip | sort | tail -n 1)
+          echo "Using $ZIP"
+          unzip -q "$ZIP" -d extracted
+          find extracted -maxdepth 3 -type f | sort | sed -n '1,80p'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build debug APK
+        run: |
+          set -e
+          PROJECT_DIR=$(find extracted -name settings.gradle -printf '%h\n' | head -n 1)
+          echo "Building in $PROJECT_DIR"
+          cd "$PROJECT_DIR"
+          gradle :app:assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: rail-departure-boards-debug-apk
+          path: extracted/**/app/build/outputs/apk/debug/*.apk
